@@ -14,6 +14,7 @@
 
 using System.Net;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -35,7 +36,7 @@ Console.WriteLine($"[nota-headless] engine {NotaEngine.Version} ready (no audio 
 var builder = WebApplication.CreateBuilder(args);
 builder.Logging.ClearProviders();
 builder.Logging.AddSimpleConsole(o => o.SingleLine = true);
-builder.Logging.SetMinimumLevel(LogLevel.Warning);
+builder.Logging.SetMinimumLevel(Microsoft.Extensions.Logging.LogLevel.Warning);
 builder.WebHost.ConfigureKestrel(k => k.Listen(IPAddress.Parse(host), port));
 
 // What Nota.App shares with the MCP tools (see Nota.App/Mcp/McpAppServices.cs), minus the UI-bound parts.
