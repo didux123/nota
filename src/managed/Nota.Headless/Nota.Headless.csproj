@@ -1,0 +1,47 @@
+<!-- SPDX-License-Identifier: AGPL-3.0-only -->
+<!-- Headless host (fork addition): runs the engine with no window and no audio device, and serves
+     Nota's MCP tools over HTTP so another program can build a project and render it offline.
+     Uses Nota.Infrastructure + Nota.Mcp only — no Avalonia, no Nota.App. -->
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <AssemblyName>Nota.Headless</AssemblyName>
+    <RootNamespace>Nota.Headless</RootNamespace>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="ModelContextProtocol" Version="2.1.0" />
+    <PackageReference Include="ModelContextProtocol.AspNetCore" Version="2.1.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Nota.Application\Nota.Application.csproj" />
+    <ProjectReference Include="..\Nota.Infrastructure\Nota.Infrastructure.csproj" />
+    <ProjectReference Include="..\Nota.Mcp\Nota.Mcp.csproj" />
+  </ItemGroup>
+
+  <!-- Native engine + scan worker next to the binary (Linux build of src/native/nota.engine). -->
+  <PropertyGroup>
+    <NotaNativeDir Condition="'$(NotaNativeDir)' == ''">$(MSBuildProjectDirectory)/../../native/nota.engine/build</NotaNativeDir>
+    <NotaEngineLib Condition="'$(NotaEngineLib)' == ''">$(NotaNativeDir)/libnota_engine.so</NotaEngineLib>
+    <NotaScanWorker Condition="'$(NotaScanWorker)' == ''">$(NotaNativeDir)/nota-scanworker</NotaScanWorker>
+  </PropertyGroup>
+  <ItemGroup Condition="Exists('$(NotaEngineLib)')">
+    <None Include="$(NotaEngineLib)">
+      <Link>libnota_engine.so</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+  <ItemGroup Condition="Exists('$(NotaScanWorker)')">
+    <None Include="$(NotaScanWorker)">
+      <Link>nota-scanworker</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+</Project>
