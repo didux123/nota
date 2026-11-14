@@ -9,10 +9,13 @@
 //   NOTA_HEADLESS_PORT   port (default 3900, Nota's usual MCP port)
 //   NOTA_HEADLESS_TOKEN  if set, every request but /health needs "Authorization: Bearer <token>"
 //   NOTA_DATA_DIR        Nota's data folder (settings, presets, kits cache)
+//   NOTA_EXPORT_DIR      where export_master / export_stems should write (default $NOTA_DATA_DIR/exports)
 //
-// Endpoints: POST /mcp (MCP Streamable HTTP, stateless), GET /health.
+// Endpoints: POST /mcp (MCP Streamable HTTP, stateless), GET /health,
+//            GET|DELETE /exports/{file} (fetch or remove a rendered file from the export folder).
 
 using System.Net;
+using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
@@ -28,6 +31,10 @@ static string Env(string name, string fallback) => Environment.GetEnvironmentVar
 var host = Env("NOTA_HEADLESS_HOST", "0.0.0.0");
 var port = int.Parse(Env("NOTA_HEADLESS_PORT", "3900"));
 var token = Env("NOTA_HEADLESS_TOKEN", "");
+var exportDir = Env("NOTA_EXPORT_DIR", Path.Combine(Env("NOTA_DATA_DIR", "/var/lib/nota"), "exports"));
+Directory.CreateDirectory(exportDir);
+var safeName = new Regex(@"^[A-Za-z0-9._-]{1,120}\.(wav|flac|mp3)$");
+string? ExportPath(string name) => safeName.IsMatch(name) ? Path.Combine(exportDir, name) : null;
 
 using var thread = new EngineThread(pumpPluginHost: OperatingSystem.IsLinux());
 var engine = await thread.InvokeAsync(() => new NotaEngine());   // the engine thread owns it, like Nota.App's UI thread
@@ -75,7 +82,23 @@ if (token.Length > 0)
     });
 }
 
-app.MapGet("/health", () => Results.Json(new { ok = true, engine = NotaEngine.Version, tracks = engine.TrackCount }));
+app.MapGet("/health", () => Results.Json(new { ok = true, engine = NotaEngine.Version, tracks = engine.TrackCount, exportDir }));
+app.MapGet("/exports/{name}", (string name) =>
+{
+    var path = ExportPath(name);
+    if (path is null) return Results.BadRequest();
+    if (!File.Exists(path)) return Results.NotFound();
+    var type = name.EndsWith(".mp3") ? "audio/mpeg" : name.EndsWith(".flac") ? "audio/flac" : "audio/wav";
+    return Results.File(path, type, enableRangeProcessing: true);
+});
+app.MapDelete("/exports/{name}", (string name) =>
+{
+    var path = ExportPath(name);
+    if (path is null) return Results.BadRequest();
+    if (!File.Exists(path)) return Results.NotFound();
+    File.Delete(path);
+    return Results.Ok();
+});
 app.MapMcp("/mcp");
 
 Console.WriteLine($"[nota-headless] MCP on http://{host}:{port}/mcp{(token.Length > 0 ? " (token required)" : "")}");

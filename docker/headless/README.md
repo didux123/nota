@@ -7,7 +7,8 @@ render it offline with `export_master` / `export_stems`.
 
 - Code: `src/managed/Nota.Headless` (no change to upstream files, so the fork stays easy to rebase).
 - Extra tools: `reset_project` (empty project + tempo/signature), `headless_status`.
-- Endpoints: `POST /mcp` (MCP Streamable HTTP, stateless), `GET /health`.
+- Endpoints: `POST /mcp` (MCP Streamable HTTP, stateless), `GET /health`,
+  `GET|DELETE /exports/{file}` (rendered files in `NOTA_EXPORT_DIR`, default `$NOTA_DATA_DIR/exports`).
 - Environment: `NOTA_HEADLESS_HOST` (default `0.0.0.0`), `NOTA_HEADLESS_PORT` (3900),
   `NOTA_HEADLESS_TOKEN` (bearer token, recommended), `NOTA_DATA_DIR`.
 
