@@ -35,6 +35,10 @@ var exportDir = Env("NOTA_EXPORT_DIR", Path.Combine(Env("NOTA_DATA_DIR", "/var/l
 Directory.CreateDirectory(exportDir);
 var safeName = new Regex(@"^[A-Za-z0-9._-]{1,120}\.(wav|flac|mp3)$");
 string? ExportPath(string name) => safeName.IsMatch(name) ? Path.Combine(exportDir, name) : null;
+// Fichiers audio envoyés par le client (voix recalées…), à charger dans un Sampler par leur chemin.
+var importDir = Path.Combine(Env("NOTA_DATA_DIR", "/var/lib/nota"), "imports");
+Directory.CreateDirectory(importDir);
+string? ImportPath(string name) => safeName.IsMatch(name) ? Path.Combine(importDir, name) : null;
 
 using var thread = new EngineThread(pumpPluginHost: OperatingSystem.IsLinux());
 var engine = await thread.InvokeAsync(() => new NotaEngine());   // the engine thread owns it, like Nota.App's UI thread
@@ -61,6 +65,9 @@ s.AddSingleton<IDrumKits, DrumKitService>();
 s.AddSingleton<IPresetStore, PresetStore>();
 s.AddSingleton<IPresetLibrary, PresetLibrary>();
 s.AddSingleton<IAudioExporter, AudioExporter>();
+// Mosaic (import SFZ, banques d'échantillons) : magasin d'échantillons + bibliothèque de packs.
+s.AddSingleton<ISampleStore, SampleStore>();
+s.AddSingleton<IMosaicPacks, Nota.Infrastructure.Mosaic.MosaicPackLibrary>();
 
 s.AddMcpServer(o => { o.ServerInfo = new() { Name = "Nota (headless)", Version = "1" }; })
     .WithHttpTransport(o => o.Stateless = true)
@@ -68,6 +75,8 @@ s.AddMcpServer(o => { o.ServerInfo = new() { Name = "Nota (headless)", Version =
     .WithToolsFromAssembly(typeof(HeadlessTools).Assembly);  // reset_project, headless_status
 
 var app = builder.Build();
+// Racines des échantillons Mosaic (SFZ, packs) : sans elles le moteur ne résout aucun chemin d'échantillon.
+Nota.Infrastructure.Mosaic.MosaicRoots.Install(app.Services.GetRequiredService<ISettingsService>());
 
 if (token.Length > 0)
 {
@@ -98,6 +107,21 @@ app.MapDelete("/exports/{name}", (string name) =>
     if (!File.Exists(path)) return Results.NotFound();
     File.Delete(path);
     return Results.Ok();
+});
+app.MapPut("/imports/{name}", async (string name, HttpRequest req) =>
+{
+    var path = ImportPath(name);
+    if (path is null) return Results.BadRequest();
+    if (req.ContentLength is > 60_000_000) return Results.StatusCode(413);
+    await using (var f = File.Create(path)) await req.Body.CopyToAsync(f);
+    return Results.Json(new { path });
+});
+app.MapDelete("/imports/{name}", (string name) =>
+{
+    var path = ImportPath(name);
+    if (path is null) return Results.BadRequest();
+    if (File.Exists(path)) File.Delete(path);
+    return Results.NoContent();
 });
 app.MapMcp("/mcp");
 
